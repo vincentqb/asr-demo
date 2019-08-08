@@ -5,7 +5,6 @@ algorithm <https://www.eurasip.org/Proceedings/Eusipco/Eusipco2009/contents/pape
 """
 
 import math
-# import IPython.display as ipd
 
 import pyaudio
 import numpy as np
@@ -24,7 +23,8 @@ from collections import deque
 # In the offline case, the list of frames is postprocessed to remove too
 # short silence and speech sequences. In the online case here, inertia is
 # added before switching from speech to silence or vice versa.
-# 
+#
+
 
 def compute_spectral_flatness(frame):
     EPSILON = 0.01
@@ -49,7 +49,7 @@ class VoiceActivityDetection(object):
         self.energy_prim_thresh = 40
         self.frequency_prim_thresh = 5
         self.spectral_flatness_prim_thresh = 3
-        
+
         self.ignore_silent_count = 4
         self.ignore_speech_count = 1
 
@@ -59,7 +59,7 @@ class VoiceActivityDetection(object):
         self.silent_count = 0
         self.speech_count = 0
         self.n = 0
-        
+
         self.energy_list = []
         self.frequency_list = []
         self.spectral_flatness_list = []
@@ -72,17 +72,17 @@ class VoiceActivityDetection(object):
 
         # Compute frame energy
         energy = compute_energy(frame)
-    
+
         # Most dominant frequency component
         frequency = amplitudes.argmax()
-    
+
         # Spectral flatness measure
         spectral_flatness = compute_spectral_flatness(amplitudes)
-        
+
         self.energy_list.append(energy)
         self.frequency_list.append(frequency)
         self.spectral_flatness_list.append(spectral_flatness)
-    
+
         if self.n == 0:
             self.min_energy = energy
             self.min_frequency = frequency
@@ -90,24 +90,26 @@ class VoiceActivityDetection(object):
         elif self.n < self.num_init_frames:
             self.min_energy = min(energy, self.min_energy)
             self.min_frequency = min(frequency, self.min_frequency)
-            self.min_spectral_flatness = min(spectral_flatness, self.min_spectral_flatness)
-    
-        self.n +=1
-        
-        thresh_energy = self.energy_prim_thresh * torch.log(EPSILON + self.min_energy)
+            self.min_spectral_flatness = min(
+                spectral_flatness, self.min_spectral_flatness)
+
+        self.n += 1
+
+        thresh_energy = self.energy_prim_thresh * \
+            torch.log(EPSILON + self.min_energy)
         thresh_frequency = self.frequency_prim_thresh
         thresh_spectral_flatness = self.spectral_flatness_prim_thresh
-    
+
         # Check all three conditions
-    
+
         counter = 0
         if energy - self.min_energy >= thresh_energy:
             counter += 1
-        if frequency - self.min_frequency >= thresh_frequency: 
+        if frequency - self.min_frequency >= thresh_frequency:
             counter += 1
-        if spectral_flatness - self.min_spectral_flatness >= thresh_spectral_flatness: 
+        if spectral_flatness - self.min_spectral_flatness >= thresh_spectral_flatness:
             counter += 1
-        
+
         # Detection
         if counter > 1:
             # Speech detected
@@ -121,7 +123,8 @@ class VoiceActivityDetection(object):
                 return self.speech_mark
         else:
             # Silence detected
-            self.min_energy = ((self.silent_count * self.min_energy) + energy) / (self.silent_count + 1)
+            self.min_energy = (
+                (self.silent_count * self.min_energy) + energy) / (self.silent_count + 1)
             self.silent_count += 1
             # Inertia against switching
             if self.n >= self.num_init_frames and self.silent_count <= self.ignore_silent_count:
@@ -131,8 +134,10 @@ class VoiceActivityDetection(object):
                 self.speech_count = 0
                 return self.silence_mark
 
+
 class MicrophoneStream(object):
     """Opens a recording stream as a generator yielding the audio chunks."""
+
     def __init__(self, device=None, rate=22050, chunk=2205):
         """
         The 22050 is the librosa default, which is what our models were
@@ -151,7 +156,7 @@ class MicrophoneStream(object):
     def __enter__(self):
         self._audio_interface = pyaudio.PyAudio()
         self._audio_stream = self._audio_interface.open(
-            #format=pyaudio.paInt16,
+            # format=pyaudio.paInt16,
             format=pyaudio.paFloat32,
             # The API currently only supports 1-channel (mono) audio
             # https://goo.gl/z757pE
@@ -209,60 +214,41 @@ class MicrophoneStream(object):
             for chunk in ans:
                 yield librosa.core.resample(chunk, self._rate, 22050)
 
-def run_vad():
 
-    # Iterate VAD
-    
+def get_microphone_chunks():
     vad = VoiceActivityDetection()
     speech_frames = []
     chunks = []
-    
-    # fig, ax = plt.subplots()
-    # m = .2
-    # ax.set_ylim(-m,m)
-    
+
     min_to_cumulate = 20  # 2 seconds, with defaults
     max_to_cumulate = 100  # 10 seconds with defaults
     precumulate = 5
-    
+
     max_to_visualize = 100
-    
+
     cumulated = []
     precumulated = deque(maxlen=precumulate)
-    # colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
 
-    
     with MicrophoneStream() as stream:
         audio_generator = stream.generator()
         chunk_length = stream._chunk
         waveform = torch.zeros(max_to_visualize*chunk_length)
         speechform = torch.zeros(max_to_visualize*chunk_length)
-        try:
-            for chunk in audio_generator:
-            
-                # Format plot
-                # plt.xticks(rotation=45, ha='right')
-                # plt.subplots_adjust(bottom=0.30)
-                # plt.title('TMP102 Temperature over Time')
-                # plt.ylabel('Temperature (deg C)')
-                
-                # Is speech?
-    
-                chunk = torch.tensor(chunk)
-                is_speech = vad.iter(chunk)
-                
-                # Cumulate speech
-                
-                if is_speech or cumulated:
-                    cumulated.append(chunk)
-                else:
-                    precumulated.append(chunk)
-                
-                if (not is_speech and len(cumulated) >= min_to_cumulate) or (len(cumulated) > max_to_cumulate):
-                    z = torch.cat(list(precumulated) + cumulated, -1)
-                    yield (z*stream._rate, stream._rate)
-                    cumulated = []
-                    precumulated = deque(maxlen=precumulate)
-                
-        except KeyboardInterrupt:
-            pass
+        for chunk in audio_generator:
+            # Is speech?
+
+            chunk = torch.tensor(chunk)
+            is_speech = vad.iter(chunk)
+
+            # Cumulate speech
+
+            if is_speech or cumulated:
+                cumulated.append(chunk)
+            else:
+                precumulated.append(chunk)
+
+            if (not is_speech and len(cumulated) >= min_to_cumulate) or (len(cumulated) > max_to_cumulate):
+                waveform = torch.cat(list(precumulated) + cumulated, -1)
+                yield (waveform*stream._rate, stream._rate)
+                cumulated = []
+                precumulated = deque(maxlen=precumulate)

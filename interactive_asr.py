@@ -14,9 +14,11 @@ import os
 import random
 import string
 import sys
-from vad import run_vad
+from vad import get_microphone_chunks
 import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import datetime as dt
+from time import time
 import datetime as dt
 
 import sentencepiece as spm
@@ -33,9 +35,11 @@ logger.setLevel(logging.INFO)
 
 
 def add_asr_eval_argument(parser):
-    parser.add_argument("--ctc", action="store_true", help="decode a ctc model")
+    parser.add_argument("--ctc", action="store_true",
+                        help="decode a ctc model")
     parser.add_argument("--rnnt", default=False, help="decode a rnnt model")
-    parser.add_argument("--kspmodel", default=None, help="sentence piece model")
+    parser.add_argument("--kspmodel", default=None,
+                        help="sentence piece model")
     parser.add_argument(
         "--wfstlm", default=None, help="wfstlm on dictonary output units"
     )
@@ -100,7 +104,7 @@ def calc_mean_invstddev(feature):
         return mean, 1.0 / (np.sqrt(var) + sys.float_info.epsilon)
     return mean, 1.0 / np.sqrt(var)
 
-    
+
 def calcMN(features):
     mean, invstddev = calc_mean_invstddev(features)
     res = (features - mean) * invstddev
@@ -114,7 +118,8 @@ def transcribe(waveform, args, task, generator, models, sp, tgt_dict):
         /Users/jamarshon/Downloads/checkpoint_avg_60_80.pt --beam 20 
     """
     num_features = 80
-    output = torchaudio.compliance.kaldi.fbank(waveform, num_mel_bins=num_features)
+    output = torchaudio.compliance.kaldi.fbank(
+        waveform, num_mel_bins=num_features)
     output_cmvn = calcMN(output.cpu().detach().numpy())
 
     # size (m, n)
@@ -133,9 +138,8 @@ def transcribe(waveform, args, task, generator, models, sp, tgt_dict):
         # Process top predictions
         hyp_words = process_predictions(args, hypos[i], sp, tgt_dict)
         transcription.append(hyp_words)
-
-    print('transcription:', transcription)
     return transcription
+
 
 def main(args):
     check_args(args)
@@ -168,36 +172,17 @@ def main(args):
     sp = spm.SentencePieceProcessor()
     sp.Load(os.path.join(args.data, 'spm.model'))
 
-    fig = plt.figure()
-    ax = fig.add_subplot(1, 1, 1)
+    for (waveform, sample_rate) in get_microphone_chunks():
+        waveform = torchaudio.transforms.Resample(
+            orig_freq=sample_rate, new_freq=16000)(waveform.reshape(1, -1))
+        transcription = transcribe(waveform, args, task, generator, models, sp, tgt_dict)
+        print("{}: {}".format(dt.datetime.now().strftime('%H:%M:%S'), transcription[0][0]))
 
-    # TODO: replace this    
-    path = '/Users/cpuhrsch/Desktop/untitled.wav'
-    if not os.path.exists(path):
-        raise FileNotFoundError("Audio file not found: {}".format(path))
-    xs = []
-    ys_ = []
-    for (waveform, sample_rate) in run_vad():
-        ys_.append(waveform) 
-        # Draw x and y lists
-        ax.clear()
-        ax.plot(torch.cat(ys_))
-        # waveform, sample_rate = torchaudio.load_wav(path)
-        # plt.plot(waveform)
-        # plt.pause(0.05)
-        # import pdb; pdb.set_trace()
-        waveform = torchaudio.transforms.Resample(orig_freq=sample_rate,new_freq=16000)(waveform.reshape(1, -1))
-        transcribe(waveform, args, task, generator, models, sp, tgt_dict)
-    print("time: " + str(time.time() - t0))
-    
 
 def cli_main():
     parser = options.get_generation_parser()
     parser = add_asr_eval_argument(parser)
-    #args = fairspeq_options.parse_args_and_arch(parser)
     args = options.parse_args_and_arch(parser)
-    ani = animation.FuncAnimation(fig, animate, fargs=(xs, ys), interval=1000)
-
     main(args)
 
 
