@@ -13,7 +13,7 @@ What you need to run this demo
 Models:
 - [dictionary](https://download.pytorch.org/models/audio/dict.txt)
 - [sentence piece model](https://download.pytorch.org/models/audio/spm.model)
-- [model](https://download.pytorch.org/models/audio/model.pt)
+- [model](https://download.pytorch.org/models/audio/checkpoint_avg_60_80.pt)
 
 Example command:
 Save the dictionary, sentence piece model and model in data

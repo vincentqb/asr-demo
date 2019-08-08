@@ -46,8 +46,8 @@ class VoiceActivityDetection(object):
         self.ignore_silent_count = 10
         self.ignore_speech_count = 5
 
-        self.energy_prim_thresh = 40
-        self.frequency_prim_thresh = 5
+        self.energy_prim_thresh = 60
+        self.frequency_prim_thresh = 10
         self.spectral_flatness_prim_thresh = 3
 
         self.ignore_silent_count = 4
@@ -220,7 +220,7 @@ def get_microphone_chunks():
     speech_frames = []
     chunks = []
 
-    min_to_cumulate = 20  # 2 seconds, with defaults
+    min_to_cumulate = 5  # 0.5 seconds, with defaults
     max_to_cumulate = 100  # 10 seconds with defaults
     precumulate = 5
 

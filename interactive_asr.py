@@ -172,6 +172,7 @@ def main(args):
     sp = spm.SentencePieceProcessor()
     sp.Load(os.path.join(args.data, 'spm.model'))
 
+    print("READY!")
     for (waveform, sample_rate) in get_microphone_chunks():
         waveform = torchaudio.transforms.Resample(
             orig_freq=sample_rate, new_freq=16000)(waveform.reshape(1, -1))
