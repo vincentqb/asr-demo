@@ -6,7 +6,6 @@ algorithm <https://www.eurasip.org/Proceedings/Eusipco/Eusipco2009/contents/pape
 
 import math
 # import IPython.display as ipd
-# import matplotlib.pyplot as plt
 
 import pyaudio
 import numpy as np
@@ -219,7 +218,7 @@ def run_vad():
     chunks = []
     
     # fig, ax = plt.subplots()
-    m = .2
+    # m = .2
     # ax.set_ylim(-m,m)
     
     min_to_cumulate = 20  # 2 seconds, with defaults
@@ -231,6 +230,7 @@ def run_vad():
     cumulated = []
     precumulated = deque(maxlen=precumulate)
     # colors = plt.rcParams['axes.prop_cycle'].by_key()['color']
+
     
     with MicrophoneStream() as stream:
         audio_generator = stream.generator()
@@ -239,6 +239,12 @@ def run_vad():
         speechform = torch.zeros(max_to_visualize*chunk_length)
         try:
             for chunk in audio_generator:
+            
+                # Format plot
+                # plt.xticks(rotation=45, ha='right')
+                # plt.subplots_adjust(bottom=0.30)
+                # plt.title('TMP102 Temperature over Time')
+                # plt.ylabel('Temperature (deg C)')
                 
                 # Is speech?
     
@@ -254,28 +260,9 @@ def run_vad():
                 
                 if (not is_speech and len(cumulated) >= min_to_cumulate) or (len(cumulated) > max_to_cumulate):
                     z = torch.cat(list(precumulated) + cumulated, -1)
-                    print("RUN PYSPEECH")
                     yield (z*stream._rate, stream._rate)
                     cumulated = []
                     precumulated = deque(maxlen=precumulate)
-                
-                continue
-                # Plot
-                
-                waveform[:-chunk_length] = waveform[chunk_length:]
-                waveform[-chunk_length:] = chunk
-                speechform[:-chunk_length] = speechform[chunk_length:]
-                speechform[-chunk_length:] = int(is_speech)
-    
-                if ax.lines:
-                    ax.lines[0].set_ydata(waveform)
-                    ax.lines[1].set_ydata(.95*m*speechform)
-                    ax.lines[2].set_ydata(-.95*m*speechform)
-                else:
-                    ax.plot(waveform)
-                    ax.plot(.95*m*speechform, color=colors[1], linewidth=2)
-                    ax.plot(-.95*m*speechform, color=colors[1], linewidth=2)
-                fig.canvas.draw()
                 
         except KeyboardInterrupt:
             pass

@@ -14,6 +14,10 @@ import os
 import random
 import string
 import sys
+from vad import run_vad
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
+import datetime as dt
 
 import sentencepiece as spm
 import torch
@@ -164,17 +168,23 @@ def main(args):
     sp = spm.SentencePieceProcessor()
     sp.Load(os.path.join(args.data, 'spm.model'))
 
+    fig = plt.figure()
+    ax = fig.add_subplot(1, 1, 1)
+
     # TODO: replace this    
     path = '/Users/cpuhrsch/Desktop/untitled.wav'
     if not os.path.exists(path):
         raise FileNotFoundError("Audio file not found: {}".format(path))
-    import time
-    t0 = time.time()
-    from vad import run_vad
+    xs = []
+    ys_ = []
     for (waveform, sample_rate) in run_vad():
+        ys_.append(waveform) 
+        # Draw x and y lists
+        ax.clear()
+        ax.plot(torch.cat(ys_))
         # waveform, sample_rate = torchaudio.load_wav(path)
-        print('waveform.size()')
-        print(waveform.size())
+        # plt.plot(waveform)
+        # plt.pause(0.05)
         # import pdb; pdb.set_trace()
         waveform = torchaudio.transforms.Resample(orig_freq=sample_rate,new_freq=16000)(waveform.reshape(1, -1))
         transcribe(waveform, args, task, generator, models, sp, tgt_dict)
@@ -186,6 +196,8 @@ def cli_main():
     parser = add_asr_eval_argument(parser)
     #args = fairspeq_options.parse_args_and_arch(parser)
     args = options.parse_args_and_arch(parser)
+    ani = animation.FuncAnimation(fig, animate, fargs=(xs, ys), interval=1000)
+
     main(args)
 
 
